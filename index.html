@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Fire & Water: Save the Princess</title>
+  <style>
+    :root {
+      --fire: #ff3300;
+      --water: #00d2ff;
+      --bg-dark: #05050a;
+      --gold: #ffd700;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Tahoma, sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+    
+    body { 
+      background: var(--bg-dark); 
+      color: #fff; 
+      min-height: 100vh; 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: flex-start; 
+      overflow-x: hidden; 
+      padding: 6px; 
+    }
+
+    #element-canvas {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 1; pointer-events: none;
+    }
+
+    .container {
+      position: relative; 
+      z-index: 10; 
+      width: 100%; 
+      max-width: 340px;
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: flex-start; 
+      gap: 8px;
+    }
+
+    header {
+      text-align: center; background: linear-gradient(135deg, rgba(15,15,30,0.95), rgba(30,15,40,0.95));
+      padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(255,215,0,0.3);
+      width: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.8); backdrop-filter: blur(8px);
+    }
+    h1 { font-size: 0.88rem; color: var(--gold); text-shadow: 0 0 6px rgba(255,215,0,0.6); }
+    .status-bar { display: flex; justify-content: space-around; margin-top: 3px; font-size: 0.63rem; color: #ddd; }
+
+    /* Meter */
+    .meter-box {
+      width: 100%; height: 8px; background: rgba(0,0,0,0.8);
+      border-radius: 4px; overflow: hidden; margin-top: 4px;
+      border: 1px solid rgba(255,255,255,0.3); position: relative;
+    }
+    .meter-fill {
+      height: 100%; width: 50%; transition: width 0.4s ease;
+      position: relative; background: linear-gradient(90deg, var(--fire), var(--water));
+    }
+
+    #puzzle-board {
+      width: 240px; height: 240px; background: rgba(10, 10, 20, 0.95);
+      border: 3px solid var(--gold); border-radius: 12px; display: grid;
+      position: relative; box-shadow: 0 0 20px rgba(255,215,0,0.3), inset 0 0 12px rgba(0,0,0,0.9);
+      overflow: hidden;
+    }
+    .puzzle-slot { border: 1px dashed rgba(255,255,255,0.25); position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+
+    .tray-container {
+      width: 100%; max-width: 290px; background: linear-gradient(135deg, rgba(25, 25, 45, 0.9), rgba(15, 15, 30, 0.95));
+      border: 2px solid rgba(255, 215, 0, 0.4); border-radius: 10px; padding: 5px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.7); backdrop-filter: blur(10px);
+    }
+    .tray-title { font-size: 0.6rem; color: var(--gold); margin-bottom: 3px; text-align: center; font-weight: bold; }
+    #pieces-pool {
+      min-height: 50px; max-height: 80px; overflow-y: auto;
+      display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-content: flex-start;
+      padding: 2px;
+    }
+
+    .piece {
+      cursor: pointer; border-radius: 3px;
+      box-sizing: border-box; position: relative; overflow: hidden;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.6); display: inline-block;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .piece img {
+      display: block; position: absolute; max-width: none; pointer-events: none;
+    }
+    .piece.selected { border: 2px solid var(--gold); transform: scale(1.06) translateY(-2px); z-index: 20; box-shadow: 0 0 12px var(--gold); }
+    .piece.placed { width: 100% !important; height: 100% !important; border: none !important; box-shadow: none !important; transform: none !important; border-radius: 0 !important; }
+
+    .controls { display: flex; gap: 5px; width: 100%; max-width: 290px; justify-content: center; flex-wrap: wrap; }
+    button {
+      padding: 7px 4px; border: none; border-radius: 7px; font-weight: bold; font-size: 0.65rem;
+      cursor: pointer; background: rgba(45, 45, 70, 0.9); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+      box-shadow: 0 3px 8px rgba(0,0,0,0.4); text-align: center; flex: 1;
+    }
+    button:active { transform: scale(0.95); }
+    .btn-primary { background: linear-gradient(135deg, #ff4500, #ff8c00); border-color: #ff6347; }
+    .btn-exit { background: linear-gradient(135deg, #cc0000, #ff1a1a); border-color: #ff4d4d; }
+    .btn-dev { background: linear-gradient(135deg, #4a0e4e, #2a1a00); border-color: var(--gold); color: var(--gold); flex: 100%; }
+
+    /* Modals */
+    .modal {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.9); z-index: 100; display: flex;
+      justify-content: center; align-items: center; backdrop-filter: blur(8px);
+    }
+    .modal.hidden { display: none !important; }
+    .modal-content {
+      background: #121220; border: 2px solid var(--gold); border-radius: 12px;
+      padding: 12px; width: 90%; max-width: 290px; max-height: 80vh; overflow-y: auto; text-align: center;
+      box-shadow: 0 0 25px rgba(255,215,0,0.3);
+    }
+    .levels-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 8px 0; }
+    .level-btn {
+      aspect-ratio: 1; border-radius: 5px; border: 1px solid rgba(255,215,0,0.2); background: rgba(30,30,50,0.9);
+      color: #888; font-size: 0.7rem; font-weight: bold; display: flex;
+      align-items: center; justify-content: center; cursor: not-allowed;
+    }
+    .level-btn.unlocked { background: rgba(20, 90, 160, 0.9); color: #fff; border-color: var(--water); cursor: pointer; }
+    .level-btn.vip { border-color: var(--gold); }
+    .level-btn.vip.unlocked { background: linear-gradient(135deg, #704800, #251800); }
+
+    /* Celebration Overlay */
+    .celebration-modal {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(5, 5, 15, 0.95); z-index: 200; display: flex;
+      flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px;
+    }
+    .celebration-modal.hidden { display: none !important; }
+    .celebration-card {
+      background: linear-gradient(135deg, #2a1a00, #4a0e4e);
+      border: 3px solid var(--gold); border-radius: 20px; padding: 16px; width: 100%; max-width: 310px;
+      box-shadow: 0 0 40px rgba(255,215,0,0.6);
+    }
+    .couple-art { font-size: 3rem; margin-bottom: 8px; }
+
+    body.theme-vip #puzzle-board { border-color: var(--gold); box-shadow: 0 0 25px rgba(255,215,0,0.6); }
+  </style>
+</head>
+<body>
+
+  <canvas id="element-canvas"></canvas>
+
+  <div class="container">
+    <header>
+      <h1 id="game-title">Castle 1: Save Princess</h1>
+      <div class="status-bar">
+        <span>Level: <b id="level-num">1</b>/40</span>
+        <span>Time: <b id="timer">00:00</b></span>
+        <span>Errors: <b id="errors">0</b></span>
+      </div>
+      <div class="meter-box">
+        <div id="element-meter" class="meter-fill"></div>
+      </div>
+    </header>
+
+    <div id="puzzle-board"></div>
+
+    <div class="tray-container">
+      <div class="tray-title">✨ Puzzle Pieces Pool (Tap to select) ✨</div>
+      <div id="pieces-pool"></div>
+    </div>
+
+    <div class="controls">
+      <button onclick="toggleMap(true)">🏰 Castles Map</button>
+      <button class="btn-primary" onclick="restartLevel()">🔄 Restart</button>
+      <button class="btn-exit" onclick="exitGame()">🚪 Exit</button>
+      <button class="btn-dev" onclick="toggleInfoModal(true)">ℹ️ Creator Info</button>
+    </div>
+  </div>
+
+  <!-- Map Modal -->
+  <div id="map-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 style="color: var(--gold); font-size: 0.9rem;">Castles Map</h2>
+      <p style="font-size: 0.65rem; color: #ccc; margin-top: 2px;">Conquer all 40 castles to reach the princess!</p>
+      <div class="levels-grid" id="levels-grid"></div>
+      <button onclick="toggleMap(false)" style="background: #333; width: 100%; margin-top: 6px; padding: 6px; border-radius: 5px; font-size: 0.7rem;">Close</button>
+    </div>
+  </div>
+
+  <!-- Info Modal (Hidden by default, shows developer info on click) -->
+  <div id="info-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 style="color: var(--gold); font-size: 0.9rem; margin-bottom: 8px;">Developer & Creator</h2>
+      <p style="font-size: 0.72rem; color: #ccc; margin-bottom: 12px; line-height: 1.5;">
+        This game was designed and developed by the official project creator.<br>Support & Contact:
+      </p>
+      <button class="btn-primary" onclick="window.open('https://t.me/ilwin01', '_blank')" style="width: 100%; padding: 8px; font-size: 0.75rem; margin-bottom: 8px;">
+        ✈️ Open t.me/ilwin01
+      </button>
+      <button onclick="toggleInfoModal(false)" style="background: #333; width: 100%; padding: 6px; border-radius: 5px; font-size: 0.7rem; color:#fff; border:none; cursor:pointer;">Close</button>
+    </div>
+  </div>
+
+  <!-- Celebration Modal for Game Completion -->
+  <div id="celebration-modal" class="celebration-modal hidden">
+    <div class="celebration-card">
+      <div class="couple-art"> 👑💖💍 </div>
+      <h2 style="color: var(--gold); font-size: 1.1rem; margin-bottom: 6px;">Prince & Princess Reunited!</h2>
+      <p id="final-score-text" style="font-size: 0.72rem; color: #eee; line-height: 1.5; margin-bottom: 12px;"></p>
+      <button class="btn-primary" onclick="closeCelebration()" style="width: 100%; padding: 8px; font-size: 0.75rem;">Back to Map</button>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) tg.expand();
+
+    let currentLevel = parseInt(localStorage.getItem('pr_currentLevel')) || 1;
+    let unlockedLevel = parseInt(localStorage.getItem('pr_unlockedLevel')) || 1;
+    let isVipUnlocked = localStorage.getItem('pr_isVipUnlocked') === 'true';
+
+    let gridCount = 2;
+    let selectedPiece = null;
+    let errors = 0;
+    let elementBalance = 50;
+    let timerInterval = null;
+    let secondsElapsed = 0;
+
+    const canvas = document.getElementById('element-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    class Particle {
+      constructor() { this.reset(); }
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 4 + 2;
+        this.speedY = Math.random() * 1.5 + 0.5;
+        this.isWater = Math.random() * 100 < elementBalance;
+        this.color = this.isWater 
+          ? `hsla(${180 + Math.random()*40}, 100%, 50%, 0.6)`
+          : `hsla(${10 + Math.random()*30}, 100%, 50%, 0.6)`;
+      }
+      update() {
+        this.y -= this.speedY;
+        if (this.y < -10) {
+          this.y = canvas.height + 10;
+          this.x = Math.random() * canvas.width;
+        }
+      }
+      draw() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    for (let i = 0; i < 70; i++) particles.push(new Particle());
+
+    function animateParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => { p.update(); p.draw(); });
+      requestAnimationFrame(animateParticles);
+    }
+    animateParticles();
+
+    function saveProgress() {
+      localStorage.setItem('pr_currentLevel', currentLevel);
+      localStorage.setItem('pr_unlockedLevel', unlockedLevel);
+      localStorage.setItem('pr_isVipUnlocked', isVipUnlocked);
+    }
+
+    function exitGame() {
+      saveProgress();
+      if (confirm("Your progress has been saved. Do you want to exit?")) {
+        window.close();
+        document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;flex-direction:column;color:#ffd700;text-align:center;font-family:Tahoma;"><h2>Game saved and closed successfully.</h2></div>';
+      }
+    }
+
+    function toggleInfoModal(show) {
+      const modal = document.getElementById('info-modal');
+      if (show) modal.classList.remove('hidden');
+      else modal.classList.add('hidden');
+    }
+
+    function generateLevelImageUrl(lvl) {
+      const c = document.createElement('canvas');
+      c.width = 240;
+      c.height = 240;
+      const x = c.getContext('2d');
+
+      const isVip = lvl > 30;
+      const palettes = isVip ? [
+        ['#ffd700', '#2a1a00', '#ff8c00'],
+        ['#ff00ff', '#200020', '#00ffff']
+      ] : [
+        ['#ff4500', '#111', '#00bfff'],
+        ['#4a0e4e', '#004d40', '#ff6f00'],
+        ['#0d47a1', '#1a237e', '#00bcd4']
+      ];
+      const p = palettes[(lvl - 1) % palettes.length];
+
+      const grad = x.createLinearGradient(0, 0, 240, 240);
+      grad.addColorStop(0, p[0]);
+      grad.addColorStop(0.5, p[1]);
+      grad.addColorStop(1, p[2]);
+      x.fillStyle = grad;
+      x.fillRect(0, 0, 240, 240);
+
+      x.fillStyle = isVip ? "rgba(255, 215, 0, 0.25)" : "rgba(255, 255, 255, 0.18)";
+      for (let i = 0; i < 10; i++) {
+        x.beginPath();
+        x.arc((i * 30) % 240, 120 + Math.sin(i * lvl) * 50, isVip ? 30 : 20, 0, Math.PI * 2);
+        x.fill();
+      }
+
+      x.fillStyle = isVip ? "rgba(40, 25, 0, 0.7)" : "rgba(0, 0, 0, 0.5)";
+      x.fillRect(70, 45, 100, 150);
+      x.fillStyle = isVip ? "rgba(255, 215, 0, 0.9)" : "rgba(255, 215, 0, 0.7)";
+      x.beginPath();
+      x.arc(120, 45, 48, Math.PI, 0, false);
+      x.fill();
+
+      x.fillStyle = "#ffffff";
+      x.font = "bold 20px Tahoma";
+      x.textAlign = "center";
+      x.fillText(`Castle ${lvl}`, 120, 110);
+
+      if (isVip) {
+        x.fillStyle = "#ffd700";
+        x.font = "bold 13px Tahoma";
+        x.fillText(`👑 VIP Kingdom 👑`, 120, 145);
+      } else {
+        x.fillStyle = "#00ffff";
+        x.font = "bold 12px Tahoma";
+        x.fillText(`Save Princess`, 120, 145);
+      }
+      return c.toDataURL();
+    }
+
+    function openPaymentGateway(lvl) {
+      let userConfirmed = confirm("💎 Levels 31 to 40 (VIP) require unlocking via Telegram Stars.\nPay 30 Telegram Stars to unlock VIP access?");
+      if (userConfirmed) {
+        isVipUnlocked = true;
+        saveProgress();
+        alert("🎉 Payment successful! VIP version unlocked.");
+        startLevel(lvl);
+      }
+    }
+
+    function startLevel(lvl) {
+      if (lvl > 30 && !isVipUnlocked) {
+        openPaymentGateway(lvl);
+        return;
+      }
+
+      currentLevel = lvl;
+      saveProgress();
+
+      document.getElementById('level-num').innerText = lvl;
+      document.getElementById('game-title').innerText = lvl > 30 ? `VIP Castle ${lvl}: Royal Realm` : `Castle ${lvl}: Save Princess`;
+      
+      if (lvl > 30) document.body.classList.add('theme-vip');
+      else document.body.classList.remove('theme-vip');
+
+      if (lvl <= 5) gridCount = 2;
+      else if (lvl <= 15) gridCount = 3;
+      else if (lvl <= 30) gridCount = 4;
+      else gridCount = 5;
+
+      errors = 0;
+      elementBalance = 50;
+      selectedPiece = null;
+      updateMeter();
+      document.getElementById('errors').innerText = errors;
+
+      setupBoard(generateLevelImageUrl(lvl));
+      startTimer();
+      toggleMap(false);
+    }
+
+    function setupBoard(dataUrl) {
+      const board = document.getElementById('puzzle-board');
+      const pool = document.getElementById('pieces-pool');
+      board.innerHTML = '';
+      pool.innerHTML = '';
+
+      board.style.gridTemplateColumns = `repeat(${gridCount}, 1fr)`;
+      board.style.gridTemplateRows = `repeat(${gridCount}, 1fr)`;
+
+      const boardSize = 240;
+      const pieceSize = boardSize / gridCount;
+      const total = gridCount * gridCount;
+      let pieceArray = [];
+
+      for (let i = 0; i < total; i++) {
+        const row = Math.floor(i / gridCount);
+        const col = i % gridCount;
+
+        const slot = document.createElement('div');
+        slot.className = 'puzzle-slot';
+        slot.dataset.index = i;
+        slot.onclick = () => handleSlotClick(i);
+        board.appendChild(slot);
+
+        const piece = document.createElement('div');
+        piece.className = 'piece';
+        piece.dataset.index = i;
+        piece.style.width = `${pieceSize}px`;
+        piece.style.height = `${pieceSize}px`;
+
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.style.width = `${boardSize}px`;
+        img.style.height = `${boardSize}px`;
+        img.style.left = `-${col * pieceSize}px`;
+        img.style.top = `-${row * pieceSize}px`;
+        piece.appendChild(img);
+        
+        piece.onclick = (e) => { e.stopPropagation(); selectPiece(piece); };
+        pieceArray.push(piece);
+      }
+
+      let shuffled = [...pieceArray].sort(() => Math.random() - 0.5);
+      shuffled.forEach(p => pool.appendChild(p));
+    }
+
+    function selectPiece(piece) {
+      if (piece.classList.contains('placed')) return;
+      if (selectedPiece) selectedPiece.classList.remove('selected');
+      if (selectedPiece === piece) {
+        selectedPiece = null;
+      } else {
+        selectedPiece = piece;
+        selectedPiece.classList.add('selected');
+      }
+    }
+
+    function handleSlotClick(targetIndex) {
+      if (!selectedPiece) return;
+      const slot = document.querySelectorAll('.puzzle-slot')[targetIndex];
+      if (slot.children.length > 0) return;
+
+      const correctIndex = parseInt(selectedPiece.dataset.index);
+
+      if (correctIndex === targetIndex) {
+        slot.appendChild(selectedPiece);
+        selectedPiece.classList.remove('selected');
+        selectedPiece.classList.add('placed');
+        selectedPiece = null;
+        elementBalance = Math.min(100, elementBalance + 15);
+        checkWin();
+      } else {
+        errors++;
+        document.getElementById('errors').innerText = errors;
+        elementBalance = Math.max(0, elementBalance - 20);
+        selectedPiece.classList.remove('selected');
+        selectedPiece = null;
+      }
+      updateMeter();
+    }
+
+    function updateMeter() {
+      document.getElementById('element-meter').style.width = `${elementBalance}%`;
+    }
+
+    function checkWin() {
+      const placedCount = document.querySelectorAll('.puzzle-slot .piece').length;
+      if (placedCount === gridCount * gridCount) {
+        clearInterval(timerInterval);
+        
+        let finalScore = 1000 - secondsElapsed - (errors * 50);
+
+        setTimeout(() => {
+          if (currentLevel === 40) {
+            document.getElementById('final-score-text').innerHTML = `All 40 castles conquered!<br><b>Total Score (Minus Errors):</b> ${finalScore} pts`;
+            document.getElementById('celebration-modal').classList.remove('hidden');
+          } else {
+            alert(`🎉 Congratulations! Castle ${currentLevel} cleared!\n⏱ Time: ${secondsElapsed}s | ❌ Errors: ${errors}\n⭐ Final Score: ${finalScore} pts`);
+            if (currentLevel === unlockedLevel && unlockedLevel < 40) unlockedLevel++;
+            saveProgress();
+            startLevel(currentLevel + 1);
+          }
+        }, 200);
+      }
+    }
+
+    function closeCelebration() {
+      document.getElementById('celebration-modal').classList.add('hidden');
+      if (currentLevel === unlockedLevel && unlockedLevel < 40) unlockedLevel++;
+      saveProgress();
+      toggleMap(true);
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      secondsElapsed = 0;
+      timerInterval = setInterval(() => {
+        secondsElapsed++;
+        const m = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+        const s = String(secondsElapsed % 60).padStart(2, '0');
+        document.getElementById('timer').innerText = `${m}:${s}`;
+      }, 1000);
+    }
+
+    function toggleMap(show) {
+      const modal = document.getElementById('map-modal');
+      if (show) { renderMap(); modal.classList.remove('hidden'); }
+      else { modal.classList.add('hidden'); }
+    }
+
+    function renderMap() {
+      const grid = document.getElementById('levels-grid');
+      grid.innerHTML = '';
+      for (let i = 1; i <= 40; i++) {
+        const btn = document.createElement('div');
+        btn.className = `level-btn ${i <= unlockedLevel ? 'unlocked' : ''} ${i > 30 ? 'vip' : ''}`;
+        btn.innerHTML = `${i}${i > unlockedLevel ? '🔒' : ''}`;
+        if (i <= unlockedLevel) btn.onclick = () => startLevel(i);
+        grid.appendChild(btn);
+      }
+    }
+
+    function restartLevel() { startLevel(currentLevel); }
+
+    startLevel(currentLevel);
+  </script>
+</body>
+</html>
